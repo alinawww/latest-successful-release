@@ -45,9 +45,6 @@
       "js",
       "ts"
     ],
-    "testMatch": [
-      "**/*.test.ts"
-    ],
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/dist/"
@@ -62,11 +59,16 @@
     ],
     "collectCoverage": true,
     "collectCoverageFrom": [
-      "./src/**"
+      "./src/**",
+      "'!./src/test-factory/*.{js,ts}',"
     ]
   },
   "dependencies": {
-    "@actions/core": "^1.10.1"
+    "@actions/core": "^1.10.1",
+    "@actions/github": "^6.0.0",
+    "@octokit/rest": "^20.1.0",
+    "date-fns": "^3.6.0",
+    "factory.ts": "^1.4.1"
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",

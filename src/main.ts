@@ -1,26 +1,61 @@
 import * as core from '@actions/core'
-import { wait } from './wait'
+import { Octokit } from '@octokit/rest'
+import { isBefore } from 'date-fns'
+import { truthy } from './lib/utils/truthy'
+import { getLatestWorkflow } from './lib/workflow/get-latest-workflow'
 
-/**
- * The main function for the action.
- * @returns {Promise<void>} Resolves when the action is complete.
- */
-export async function run(): Promise<void> {
-  try {
-    const ms: string = core.getInput('milliseconds')
+const headers = { 'X-GitHub-Api-Version': '2022-11-28' }
+const GITHUB_TOKEN = core.getInput('github-token')
+const REPO = core.getInput('github-repo')
+const REPO_OWNER = core.getInput('github-repo-owner')
 
-    // Debug logs are only output if the `ACTIONS_STEP_DEBUG` secret is true
-    core.debug(`Waiting ${ms} milliseconds ...`)
+const getCommits = async (octokit: Octokit) => {
+  const { data } = await octokit.rest.repos.listCommits({
+    owner: REPO_OWNER,
+    repo: REPO,
+    per_page: 20,
+    headers
+  })
 
-    // Log the current timestamp, wait, then log the new timestamp
-    core.debug(new Date().toTimeString())
-    await wait(parseInt(ms, 10))
-    core.debug(new Date().toTimeString())
+  return data.map(commit => ({
+    message: commit.commit.message.substring(0, 50),
+    htmlUrl: commit.html_url,
+    sha: commit.sha,
+    commitDate: commit.commit.author?.date || new Date(0)
+  }))
+}
 
-    // Set outputs for other workflow steps to use
-    core.setOutput('time', new Date().toTimeString())
-  } catch (error) {
-    // Fail the workflow run if an error occurs
-    if (error instanceof Error) core.setFailed(error.message)
+export const run = async () => {
+  const octokit = new Octokit({
+    auth: GITHUB_TOKEN
+  })
+
+  const commits = await getCommits(octokit)
+
+  const commitStatus = await Promise.all(
+    commits.map(async commit => {
+      const workflowRun = await getLatestWorkflow(
+        octokit,
+        { sha: commit.sha },
+        REPO_OWNER,
+        REPO
+      )
+      return { ...commit, ...workflowRun }
+    })
+  )
+
+  const sortedReleases = [...commitStatus.filter(truthy)].sort((a, b) =>
+    isBefore(new Date(a.commitDate), new Date(b.commitDate)) ? 1 : -1
+  )
+
+  const latestSuccessRelease = sortedReleases.find(
+    ({ status, conclusion }) =>
+      status === 'completed' && conclusion === 'success'
+  )
+
+  if (!latestSuccessRelease) {
+    throw new Error(`Unable to find latest successful release`)
   }
+
+  return latestSuccessRelease
 }
