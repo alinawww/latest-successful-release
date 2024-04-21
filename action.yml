@@ -9,10 +9,15 @@ branding:
 
 # Define your inputs here.
 inputs:
-  milliseconds:
-    description: 'Your input description here'
+  github-token:
+    description: 'Your github token'
     required: true
-    default: '1000'
+  github-repo:
+    description: 'Your github repository'
+    required: true
+  github-owner:
+    description: 'The github repository owner'
+    required: true
 
 # Define your outputs here.
 outputs:
